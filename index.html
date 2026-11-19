@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SIGREB - Sistema de Gestión de Reservas Bibliotecarias | ITM</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Contenedor de Notificaciones Toast / Pop-ups -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <div class="app-shell">
+    <!-- BARRA SUPERIOR INSTITUCIONAL ITM -->
+    <header class="topbar" id="app-topbar">
+      <div class="topbar-brand">
+        <div class="brand-logo">📚 SIGREB</div>
+        <div class="brand-text">
+          <h1>Sistema de Gestión de Reservas Bibliotecarias</h1>
+        </div>
+      </div>
+
+      <div class="topbar-controls">
+        <!-- Contador de Inactividad (15 min) -->
+        <div id="session-timer-box" class="session-timer hidden" title="Cierre automático tras 15 minutos de inactividad (HU-002 CA-01)">
+          <span>⏱️ Sesión:</span>
+          <strong id="session-timer-display">15:00</strong>
+          <button id="btn-simular-inactividad" class="btn-micro" title="Simular expiración por 15 min de inactividad">Simular 15m</button>
+        </div>
+
+        <!-- Badge de Usuario y Rol Actual -->
+        <div id="user-badge-box" class="user-badge-box hidden">
+          <span id="current-role-badge" class="role-pill">VISITANTE</span>
+          <div class="user-meta">
+            <strong id="current-user-name">Invitado</strong>
+            <small id="current-user-doc">Sin autenticar</small>
+          </div>
+        </div>
+
+        <!-- Acciones Globales -->
+        <button id="btn-reset-seed" class="btn btn-outline-light btn-sm" title="Restaurar datos semilla de localStorage">🔄 Reset Datos</button>
+        <button id="btn-logout" class="btn btn-logout btn-sm hidden">🚪 Cerrar Sesión</button>
+      </div>
+    </header>
+
+    <!-- =================================================================== -->
+    <!-- VISTA 1: PANTALLA DE INICIO DE SESIÓN Y ACCESO PÚBLICO (VISITANTE)   -->
+    <!-- =================================================================== -->
+    <section id="view-auth" class="auth-wrapper">
+      <div class="auth-grid">
+        <!-- Tarjeta de Login -->
+        <div class="card auth-card">
+          <div class="auth-header">
+            <span class="inst-tag">ITM · DSI-5 · Versión 02</span>
+            <h2>🔐 Inicio de Sesión</h2>
+            <p>Autenticación por documento/cédula con identificación automática de rol</p>
+          </div>
+
+          <!-- Alerta de bloqueo por 3 intentos fallidos -->
+          <div id="login-lock-alert" class="alert alert-danger hidden">
+            <strong>⛔ Bloqueo Temporal de Seguridad:</strong> Ha superado los 3 intentos fallidos permitidos. Intente nuevamente en <span id="lock-countdown">30</span> segundos.
+          </div>
+
+          <form id="form-login" class="auth-form" autocomplete="off">
+            <div class="form-group">
+              <label for="login-documento">Cédula / Documento de Identidad</label>
+              <input type="text" id="login-documento" class="form-control" placeholder="Ej: 1001234567" required>
+            </div>
+            <div class="form-group">
+              <label for="login-password">Contraseña Institucional</label>
+              <input type="password" id="login-password" class="form-control" placeholder="••••••••" required>
+            </div>
+            <div class="auth-attempts-bar">
+              <span>Intentos fallidos: <strong id="login-attempts-count">0</strong> / 3</span>
+              <span class="security-hint">🔒 Contraseñas encriptadas (Hash)</span>
+            </div>
+            <button type="submit" id="btn-login-submit" class="btn btn-primary btn-block">Iniciar Sesión</button>
+          </form>
+
+          <div class="auth-divider">
+            <span>¿NO TIENES CUENTA O ERES VISITANTE?</span>
+          </div>
+
+          <div class="button-group two-cols" style="margin-bottom: 10px;">
+            <button type="button" id="btn-abrir-registro" class="btn btn-success btn-block">
+              📝 Crear Cuenta / Registrarse
+            </button>
+            <button type="button" id="btn-acceso-visitante" class="btn btn-visitor btn-block">
+              🌐 Entrar como Visitante
+            </button>
+          </div>
+        </div>
+
+        <!-- Tarjeta de Credenciales Demo (Semilla localStorage) -->
+        <div class="card credentials-card">
+          <div class="card-header">
+            <h2>🧪 Cuentas Semilla de Prueba (1 Clic)</h2>
+            <span class="tag-status status-disponible">Precargadas</span>
+          </div>
+          <p class="helper-text">Haz clic en cualquier perfil para autocompletar sus credenciales y probar cada vista del Mapa de Navegación:</p>
+
+          <div class="demo-users-list">
+            <div class="demo-user-item role-border-cliente" data-doc="1001234567" data-pass="1234">
+              <div class="demo-user-info">
+                <span class="role-pill pill-cliente">CLIENTE (Activo)</span>
+                <strong>Juan Pablo Zuluaga Salazar</strong>
+                <small>C.C. 1001234567 · Clave: 1234 · Sin sanciones</small>
+              </div>
+              <button class="btn btn-secondary btn-sm">Usar</button>
+            </div>
+
+            <div class="demo-user-item role-border-cliente" data-doc="1009876543" data-pass="1234">
+              <div class="demo-user-info">
+                <span class="role-pill pill-cliente">CLIENTE (Activo)</span>
+                <strong>Samuel Machado Estrada</strong>
+                <small>C.C. 1009876543 · Clave: 1234 · Sin sanciones</small>
+              </div>
+              <button class="btn btn-secondary btn-sm">Usar</button>
+            </div>
+
+            <div class="demo-user-item role-border-moroso" data-doc="1005554433" data-pass="1234">
+              <div class="demo-user-info">
+                <span class="role-pill pill-moroso">CLIENTE (En Morosidad)</span>
+                <strong>Josué Asprilla Palacios</strong>
+                <small>C.C. 1005554433 · Clave: 1234 · Sanción activa ($15.000)</small>
+              </div>
+              <button class="btn btn-secondary btn-sm">Usar</button>
+            </div>
+
+            <div class="demo-user-item role-border-inactivo" data-doc="1007778899" data-pass="1234">
+              <div class="demo-user-info">
+                <span class="role-pill pill-inactivo">CLIENTE (Inactivo)</span>
+                <strong>Laura Gómez Restrepo</strong>
+                <small>C.C. 1007778899 · Clave: 1234 · Cuenta desactivada</small>
+              </div>
+              <button class="btn btn-secondary btn-sm">Usar</button>
+            </div>
+
+            <div class="demo-user-item role-border-biblio" data-doc="2001112233" data-pass="biblio123">
+              <div class="demo-user-info">
+                <span class="role-pill pill-biblio">BIBLIOTECARIO</span>
+                <strong>Carlos Andrés Mejía (Turno Mañana)</strong>
+                <small>C.C. 2001112233 · Clave: biblio123 · Gestión operativa</small>
+              </div>
+              <button class="btn btn-secondary btn-sm">Usar</button>
+            </div>
+
+            <div class="demo-user-item role-border-admin" data-doc="9001112233" data-pass="admin123">
+              <div class="demo-user-info">
+                <span class="role-pill pill-admin">ADMINISTRADOR</span>
+                <strong>Willian Díaz Villegas (Admin General)</strong>
+                <small>C.C. 9001112233 · Clave: admin123 · Acceso total + Auditoría</small>
+              </div>
+              <button class="btn btn-secondary btn-sm">Usar</button>
+            </div>
+          </div>
+
+          <div class="architecture-summary">
+            <h4>⚙️ Patrón State Activo en 3 Entidades UML:</h4>
+            <ul>
+              <li><strong>Reserva:</strong> <code>Pendiente</code> ➔ <code>Confirmada</code> ➔ <code>Finalizada</code> / <code>Cancelada</code></li>
+              <li><strong>Ejemplar:</strong> <code>Disponible</code> ⇄ <code>Reservado</code> ➔ <code>Prestado</code> ➔ <code>En Reparación</code></li>
+              <li><strong>Cliente:</strong> <code>Activo</code> ⇄ <code>En Morosidad</code> ⇄ <code>Inactivo</code></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- VISTA 2: APLICACIÓN PRINCIPAL (NAVEGACIÓN DINÁMICA POR ROL)         -->
+    <!-- =================================================================== -->
+    <div id="view-app" class="main-workspace hidden">
+      <!-- Barra de Navegación por Pestañas según Rol -->
+      <nav class="role-navbar" id="role-navbar">
+        <!-- Secciones Cliente / Visitante (Color Azul) -->
+        <div class="nav-group" id="nav-group-cliente">
+          <span class="nav-group-label" id="lbl-panel-cliente">PANEL DEL CLIENTE</span>
+          <button class="nav-tab active" data-target="sec-catalogo">
+            📖 Catálogo Bibliográfico
+          </button>
+          <button class="nav-tab" data-target="sec-mis-reservas" id="tab-mis-reservas">
+            📅 Mis Reservas <span id="badge-count-mis-reservas" class="tab-counter">0</span>
+          </button>
+          <button class="nav-tab" data-target="sec-mi-perfil" id="tab-mi-perfil">
+            👤 Mi Perfil
+          </button>
+        </div>
+
+        <!-- Secciones Bibliotecario / Administrador (Color Verde / Naranja) -->
+        <div class="nav-group hidden" id="nav-group-staff">
+          <span class="nav-group-label" id="lbl-panel-staff">PANEL DEL BIBLIOTECARIO</span>
+          <button class="nav-tab" data-target="sec-dashboard">
+            📊 Dashboard
+          </button>
+          <button class="nav-tab" data-target="sec-gestion-reservas">
+            🗂️ Gestión de Reservas
+          </button>
+          <button class="nav-tab" data-target="sec-gestion-ejemplares">
+            🏷️ Gestión de Ejemplares
+          </button>
+          <button class="nav-tab" data-target="sec-gestion-clientes">
+            👥 Gestión de Clientes
+          </button>
+          <button class="nav-tab" data-target="sec-gestion-catalogo">
+            ➕ Gestión del Catálogo
+          </button>
+          <button class="nav-tab" data-target="sec-reportes-logs">
+            📄 Reportes y Terminal Logs
+          </button>
+        </div>
+      </nav>
+
+      <!-- Banner informativo cuando está en modo Visitante -->
+      <div id="visitor-banner" class="visitor-alert-banner hidden">
+        <div>
+          <strong>👀 Modo Visitante (Consulta Pública):</strong> Puedes buscar libros y verificar disponibilidad por fecha en tiempo real. Para solicitar reservas o consultar historial debes iniciar sesión.
+        </div>
+        <button id="btn-visitor-go-login" class="btn btn-primary btn-sm">🔐 Iniciar Sesión</button>
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- MÓDULO A1: CATÁLOGO BIBLIOGRÁFICO Y CONSULTA DE DISPONIBILIDAD    -->
+      <!-- ================================================================= -->
+      <section id="sec-catalogo" class="module-section">
+        <div class="card module-header-card border-theme-blue">
+          <div class="module-title-row">
+            <div>
+              <span class="module-tag tag-blue">Módulo de Consulta y Reservas · HU-002 / HU-003</span>
+              <h2>📖 Catálogo Bibliográfico y Disponibilidad en Tiempo Real</h2>
+              <p>Busca por título, autor, código o categoría y verifica disponibilidad por fecha específica antes de reservar (&lt; 2s).</p>
+            </div>
+          </div>
+
+          <!-- Filtros de Búsqueda Instantánea -->
+          <div class="filter-bar">
+            <div class="form-group">
+              <label for="cat-search-query">Buscar (Título, Autor o Código)</label>
+              <input type="text" id="cat-search-query" class="form-control" placeholder="Ej: Clean Code, LIB-001, García Márquez...">
+            </div>
+            <div class="form-group">
+              <label for="cat-filter-categoria">Categoría</label>
+              <select id="cat-filter-categoria" class="form-select">
+                <option value="TODAS">Todas las categorías</option>
+                <option value="Ingeniería de Software">Ingeniería de Software</option>
+                <option value="Literatura">Literatura</option>
+                <option value="Bases de Datos">Bases de Datos</option>
+                <option value="Ciencias Básicas">Ciencias Básicas</option>
+                <option value="Arquitectura y Diseño">Arquitectura y Diseño</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="cat-filter-estado">Estado General</label>
+              <select id="cat-filter-estado" class="form-select">
+                <option value="TODOS">Todos los estados</option>
+                <option value="Disponible">Disponible</option>
+                <option value="Reservado">Reservado</option>
+                <option value="Prestado">Prestado</option>
+                <option value="En Reparación">En Reparación</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="cat-filter-fecha">Consultar Fecha Deseada (HU-003)</label>
+              <input type="date" id="cat-filter-fecha" class="form-control">
+            </div>
+            <div class="form-group filter-actions">
+              <button id="btn-cat-limpiar" class="btn btn-secondary">Limpiar Filtros</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mensaje de Sin Resultados (RNF Usabilidad) -->
+        <div id="catalogo-empty-msg" class="empty-state-box hidden">
+          <div class="empty-icon">🔍</div>
+          <h3>Sin Resultados: No se encontraron materiales con los criterios ingresados</h3>
+          <p>Intenta modificar los términos de búsqueda o restablecer los filtros del catálogo.</p>
+        </div>
+
+        <!-- Grid de Tarjetas de Materiales Bibliográficos -->
+        <div id="catalogo-grid" class="catalogo-grid"></div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- MÓDULO A2: MIS RESERVAS (HISTORIAL Y CANCELACIÓN WEB - HU-004)    -->
+      <!-- ================================================================= -->
+      <section id="sec-mis-reservas" class="module-section hidden">
+        <div class="card module-header-card border-theme-blue">
+          <div class="module-title-row">
+            <div>
+              <span class="module-tag tag-blue">Portal del Cliente · HU-004 (Acceso en máx. 2 clics)</span>
+              <h2>📅 Mis Reservas Activas e Historial Personal</h2>
+              <p>Consulta el estado de tus solicitudes, fechas de entrega, código de ejemplar o cancela reservas activas liberando el ejemplar de inmediato.</p>
+            </div>
+          </div>
+
+          <div class="filter-bar">
+            <div class="form-group">
+              <label for="mis-res-search-codigo">Filtrar por Código de Material o Título (HU-004 CA-01)</label>
+              <input type="text" id="mis-res-search-codigo" class="form-control" placeholder="Ej: LIB-001 o título del libro...">
+            </div>
+            <div class="form-group">
+              <label for="mis-res-filter-estado">Estado de Reserva</label>
+              <select id="mis-res-filter-estado" class="form-select">
+                <option value="TODAS">Todas mis reservas</option>
+                <option value="PENDIENTE">Pendientes</option>
+                <option value="CONFIRMADA">Confirmadas</option>
+                <option value="FINALIZADA">Finalizadas</option>
+                <option value="CANCELADA">Canceladas</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>ID Reserva</th>
+                  <th>Código / Material</th>
+                  <th>Ejemplar Físico</th>
+                  <th>Fecha Solicitud</th>
+                  <th>Fecha Reserva</th>
+                  <th>Fecha Entrega</th>
+                  <th>Estado (Patrón State)</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-mis-reservas"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- MÓDULO A3: MI PERFIL (DATOS PERSONALES, MOROSIDAD Y SANCIÓN)      -->
+      <!-- ================================================================= -->
+      <section id="sec-mi-perfil" class="module-section hidden">
+        <div class="card module-header-card border-theme-blue">
+          <span class="module-tag tag-blue">Información del Usuario · Patrón State Cliente</span>
+          <h2>👤 Mi Perfil Institucional</h2>
+          <p>Estado actual de tu cuenta en el sistema SIGREB, historial financiero y permisos de reserva.</p>
+        </div>
+
+        <div class="profile-grid">
+          <div class="card profile-card">
+            <div class="card-header">
+              <h2>📋 Datos Personales</h2>
+              <span id="perfil-estado-badge" class="badge-estado">ACTIVO</span>
+            </div>
+            <div class="profile-details">
+              <div class="profile-row">
+                <span>Nombre Completo:</span>
+                <strong id="perfil-nombre">-</strong>
+              </div>
+              <div class="profile-row">
+                <span>Documento / Cédula:</span>
+                <strong id="perfil-documento">-</strong>
+              </div>
+              <div class="profile-row">
+                <span>Correo Institucional:</span>
+                <strong id="perfil-email">-</strong>
+              </div>
+              <div class="profile-row">
+                <span>Rol en el Sistema:</span>
+                <strong id="perfil-rol">Cliente</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="card profile-card">
+            <div class="card-header">
+              <h2>⚖️ Estado de Morosidad y Sanciones</h2>
+            </div>
+            <div class="profile-details">
+              <div class="profile-row">
+                <span>Estado de Cuenta (Patrón State):</span>
+                <strong id="perfil-estado-cuenta">-</strong>
+              </div>
+              <div class="profile-row">
+                <span>Sanción Activa (<code>estadoSancion</code>):</span>
+                <span id="perfil-sancion-flag" class="tag-status">-</span>
+              </div>
+              <div class="profile-row">
+                <span>Valor de Morosidad Acumulada:</span>
+                <strong id="perfil-morosidad-valor" class="text-danger">$0 COP</strong>
+              </div>
+              <div class="profile-row">
+                <span>Vigencia de Sanción Hasta:</span>
+                <strong id="perfil-sancion-fecha">N/A</strong>
+              </div>
+              <div id="perfil-alerta-sancion" class="alert alert-danger hidden" style="margin-top: 12px;"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- MÓDULO B1: DASHBOARD GENERAL (BIBLIOTECARIO / ADMINISTRADOR)      -->
+      <!-- ================================================================= -->
+      <section id="sec-dashboard" class="module-section hidden">
+        <div class="card module-header-card border-theme-green">
+          <span class="module-tag tag-green">Resumen General en Tiempo Real</span>
+          <h2>📊 Dashboard Operativo de la Biblioteca</h2>
+          <p>Indicadores KPI en tiempo real sobre reservas, inventario físico de ejemplares, estado de clientes y materiales más solicitados.</p>
+        </div>
+
+        <!-- Tarjetas KPI -->
+        <div class="kpi-grid" id="dashboard-kpi-grid"></div>
+
+        <!-- Alerta de Inconsistencias (HU-005 CA-03) -->
+        <div id="dashboard-inconsistencias-box" class="card border-theme-orange">
+          <div class="card-header">
+            <h2>⚠️ Auditoría de Integridad e Inconsistencias (HU-005 CA-03)</h2>
+            <button id="btn-simular-inconsistencia" class="btn btn-secondary btn-sm">🧪 Simular Inconsistencia para Prueba</button>
+          </div>
+          <div id="inconsistencias-content"></div>
+        </div>
+
+        <div class="dashboard-bottom-grid">
+          <!-- Ranking Libros Más Prestados / Reservados -->
+          <div class="card">
+            <div class="card-header">
+              <h2>🏆 Libros Más Prestados y Reservados</h2>
+            </div>
+            <div id="dashboard-top-libros" class="top-books-list"></div>
+          </div>
+
+          <!-- Resumen de Estados del Patrón State -->
+          <div class="card">
+            <div class="card-header">
+              <h2>🔄 Distribución de Estados (Patrón State)</h2>
+            </div>
+            <div id="dashboard-state-summary" class="state-distribution-box"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- MÓDULO B2: GESTIÓN DE RESERVAS (PATRÓN STATE + HU-001 + HU-005)   -->
+      <!-- ================================================================= -->
+      <section id="sec-gestion-reservas" class="module-section hidden">
+        <div class="card module-header-card border-theme-green">
+          <div class="module-title-row">
+            <div>
+              <span class="module-tag tag-green">Control de Ciclo de Vida · HU-001 / HU-005</span>
+              <h2>🗂️ Gestión Integral de Reservas (Patrón State)</h2>
+              <p>Aprueba, edita fechas, registra devoluciones, cancela o crea reservas presenciales validando reglas de negocio en tiempo real.</p>
+            </div>
+            <button id="btn-abrir-modal-presencial" class="btn btn-success">
+              ➕ Crear Nueva Reserva Presencial (HU-001)
+            </button>
+          </div>
+
+          <!-- Filtros Avanzados HU-005 -->
+          <div class="filter-bar">
+            <div class="form-group">
+              <label for="adm-res-filter-estado">Estado de Reserva</label>
+              <select id="adm-res-filter-estado" class="form-select">
+                <option value="TODAS">Todas</option>
+                <option value="PENDIENTE">Pendientes</option>
+                <option value="CONFIRMADA">Confirmadas</option>
+                <option value="FINALIZADA">Finalizadas</option>
+                <option value="CANCELADA">Canceladas</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="adm-res-filter-cliente">Cliente (Nombre o Cédula)</label>
+              <input type="text" id="adm-res-filter-cliente" class="form-control" placeholder="Ej: 1001234567 o Juan...">
+            </div>
+            <div class="form-group">
+              <label for="adm-res-filter-material">Material (Código o Título)</label>
+              <input type="text" id="adm-res-filter-material" class="form-control" placeholder="Ej: LIB-001 o Clean Code...">
+            </div>
+            <div class="form-group">
+              <label for="adm-res-filter-fecha">Fecha Reserva / Entrega</label>
+              <input type="date" id="adm-res-filter-fecha" class="form-control">
+            </div>
+            <div class="form-group filter-actions">
+              <button id="btn-adm-res-limpiar" class="btn btn-secondary">Limpiar</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Inspector Interactivo del Patrón State (Conservado y Ampliado de la base) -->
+        <div class="card state-inspector-card">
+          <div class="card-header">
+            <div>
+              <h2>🎛️ Inspector Polimórfico de Reserva en Memoria (<code>this.reservas[]</code>)</h2>
+              <small class="text-muted">Selecciona cualquier reserva para probar sus transiciones del Patrón State directamente o usa los botones por fila en la tabla inferior.</small>
+            </div>
+            <div class="selector-actions">
+              <select id="select-reserva" class="form-select"></select>
+            </div>
+          </div>
+
+          <div class="info-grid">
+            <div class="info-block">
+              <h3>👤 Información del Cliente</h3>
+              <p><strong>Nombre:</strong> <span id="cli-nombre">-</span></p>
+              <p><strong>Documento:</strong> <span id="cli-doc">-</span></p>
+              <p><strong>Estado Cliente:</strong> <span id="cli-sancion" class="tag-status">-</span></p>
+            </div>
+            <div class="info-block">
+              <h3>📖 Material y Ejemplar Asignado</h3>
+              <p><strong>Título:</strong> <span id="mat-titulo">-</span></p>
+              <p><strong>Código:</strong> <span id="mat-codigo">-</span> | <strong>Ejemplar:</strong> <span id="mat-ejemplar">-</span></p>
+              <p><strong>Fechas:</strong> <span id="res-fechas-detalle">-</span> | <strong>Estado Ejemplar:</strong> <span id="mat-estado" class="tag-status">-</span></p>
+            </div>
+          </div>
+
+          <div class="reserva-status-banner">
+            <span class="status-label">ESTADO ACTUAL DE LA RESERVA (<span id="res-id">#101</span>):</span>
+            <span id="reserva-badge" class="badge-estado badge-pendiente">PENDIENTE</span>
+          </div>
+
+          <div class="button-group four-cols" style="margin-top: 14px;">
+            <button id="btn-aprobar" class="btn btn-action btn-success">
+              <span class="btn-icon">✅</span>
+              <div class="btn-text">
+                <strong>Aprobar Reserva</strong>
+                <small>Pendiente ➔ Confirmada</small>
+              </div>
+            </button>
+            <button id="btn-editar-inspector" class="btn btn-action btn-primary">
+              <span class="btn-icon">📅</span>
+              <div class="btn-text">
+                <strong>Editar / Renovar Fecha</strong>
+                <small>Valida conflictos</small>
+              </div>
+            </button>
+            <button id="btn-finalizar" class="btn btn-action btn-dark">
+              <span class="btn-icon">📦</span>
+              <div class="btn-text">
+                <strong>Finalizar / Devolución</strong>
+                <small>Confirmada ➔ Finalizada</small>
+              </div>
+            </button>
+            <button id="btn-cancelar" class="btn btn-action btn-danger">
+              <span class="btn-icon">❌</span>
+              <div class="btn-text">
+                <strong>Cancelar Reserva</strong>
+                <small>Libera ejemplar</small>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Tabla Completa de Reservas -->
+        <div class="card">
+          <div class="card-header">
+            <h2>📋 Listado General de Reservas</h2>
+            <span id="adm-reservas-count" class="tag-status status-disponible">0 registros</span>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Cliente (Cédula / Nombre)</th>
+                  <th>Material Bibliográfico</th>
+                  <th>Ejemplar</th>
+                  <th>F. Solicitud</th>
+                  <th>F. Reserva</th>
+                  <th>F. Entrega</th>
+                  <th>Estado</th>
+                  <th>Acciones Polimórficas</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-gestion-reservas"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- MÓDULO B3: GESTIÓN DE EJEMPLARES (INVENTARIO FÍSICO Y ESTADO)     -->
+      <!-- ================================================================= -->
+      <section id="sec-gestion-ejemplares" class="module-section hidden">
+        <div class="card module-header-card border-theme-green">
+          <span class="module-tag tag-green">Patrón State: EstadoMaterial · Fiabilidad y Mantenibilidad</span>
+          <h2>🏷️ Gestión de Ejemplares Físicos</h2>
+          <p>Control de inventario por código de barras, ubicación en estante y actualización de estado físico con validación obligatoria de código del libro.</p>
+
+          <div class="filter-bar">
+            <div class="form-group">
+              <label for="ej-search-query">Buscar por Código de Barras, Código Libro o Estante</label>
+              <input type="text" id="ej-search-query" class="form-control" placeholder="Ej: EJ-1001, LIB-001, Estante A1...">
+            </div>
+            <div class="form-group">
+              <label for="ej-filter-estado">Filtrar por Estado Físico</label>
+              <select id="ej-filter-estado" class="form-select">
+                <option value="TODOS">Todos los estados</option>
+                <option value="Disponible">Disponible</option>
+                <option value="Reservado">Reservado</option>
+                <option value="Prestado">Prestado</option>
+                <option value="En Reparación">En Reparación</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>ID Ejemplar</th>
+                  <th>Código de Barras</th>
+                  <th>Código Libro</th>
+                  <th>Título del Material</th>
+                  <th>Estante / Ubicación</th>
+                  <th>Condición Física</th>
+                  <th>Estado Actual (Patrón State)</th>
+                  <th>Cambiar Estado (Valida Código)</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-gestion-ejemplares"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- MÓDULO B4: GESTIÓN DE CLIENTES (MOROSIDAD, SANCIONES Y CUENTAS)   -->
+      <!-- ================================================================= -->
+      <section id="sec-gestion-clientes" class="module-section hidden">
+        <div class="card module-header-card border-theme-green">
+          <div class="module-title-row">
+            <div>
+              <span class="module-tag tag-green">Patrón State: EstadoCliente · Control de Morosidad y Cuentas</span>
+              <h2>👥 Gestión de Clientes, Usuarios y Sanciones</h2>
+              <p>Consulta usuarios por nombre o cédula, crea nuevas cuentas, filtra clientes en morosidad, aplica o retira sanciones y activa/desactiva cuentas.</p>
+            </div>
+            <button id="btn-abrir-modal-nuevo-cliente" class="btn btn-success">
+              ➕ Crear Nuevo Usuario / Cliente
+            </button>
+          </div>
+
+          <div class="filter-bar">
+            <div class="form-group">
+              <label for="cli-search-query">Buscar Cliente (Nombre o Cédula)</label>
+              <input type="text" id="cli-search-query" class="form-control" placeholder="Ej: 1005554433 o Josué Asprilla...">
+            </div>
+            <div class="form-group">
+              <label for="cli-filter-estado">Filtro de Estado</label>
+              <select id="cli-filter-estado" class="form-select">
+                <option value="TODOS">Todos los clientes</option>
+                <option value="En Morosidad">🔴 Solo Clientes En Morosidad</option>
+                <option value="Activo">🟢 Solo Clientes Activos</option>
+                <option value="Inactivo">⚪ Solo Clientes Inactivos</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Cédula / Doc</th>
+                  <th>Nombre Completo</th>
+                  <th>Correo</th>
+                  <th>Estado Cliente (State)</th>
+                  <th>Sanción Activa</th>
+                  <th>Morosidad ($)</th>
+                  <th>Sancionado Hasta</th>
+                  <th>Acciones de Estado y Cuenta</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-gestion-clientes"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- MÓDULO B5: GESTIÓN DEL CATÁLOGO E IMPORTACIÓN CSV/XLSX            -->
+      <!-- ================================================================= -->
+      <section id="sec-gestion-catalogo" class="module-section hidden">
+        <div class="card module-header-card border-theme-green">
+          <span class="module-tag tag-green">Administración de Inventario e Interoperabilidad CSV/XLSX</span>
+          <h2>➕ Gestión del Catálogo y Sincronización Externa</h2>
+          <p>Registra nuevos materiales bibliográficos con sus ejemplares físicos o importa lotes desde archivos CSV/XLSX con validación fila por fila.</p>
+        </div>
+
+        <div class="catalog-admin-grid">
+          <!-- Formulario de Registro de Nuevo Libro -->
+          <div class="card">
+            <div class="card-header">
+              <h2>📘 Registrar Nuevo Material Bibliográfico</h2>
+            </div>
+            <form id="form-nuevo-libro" class="admin-form">
+              <div class="form-row-2">
+                <div class="form-group">
+                  <label for="new-lib-codigo">Código de Material *</label>
+                  <input type="text" id="new-lib-codigo" class="form-control" placeholder="Ej: LIB-007" required>
+                </div>
+                <div class="form-group">
+                  <label for="new-lib-categoria">Categoría *</label>
+                  <select id="new-lib-categoria" class="form-select" required>
+                    <option value="Ingeniería de Software">Ingeniería de Software</option>
+                    <option value="Literatura">Literatura</option>
+                    <option value="Bases de Datos">Bases de Datos</option>
+                    <option value="Ciencias Básicas">Ciencias Básicas</option>
+                    <option value="Arquitectura y Diseño">Arquitectura y Diseño</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="new-lib-titulo">Título del Libro / Material *</label>
+                <input type="text" id="new-lib-titulo" class="form-control" placeholder="Ej: Refactoring: Improving the Design of Existing Code" required>
+              </div>
+              <div class="form-group">
+                <label for="new-lib-autor">Autor(es) *</label>
+                <input type="text" id="new-lib-autor" class="form-control" placeholder="Ej: Martin Fowler" required>
+              </div>
+              <div class="form-group">
+                <label for="new-lib-desc">Descripción / Resumen *</label>
+                <textarea id="new-lib-desc" class="form-control" rows="2" placeholder="Descripción académica del material..." required></textarea>
+              </div>
+              <div class="form-row-2">
+                <div class="form-group">
+                  <label for="new-lib-copias">Cantidad de Ejemplares Iniciales *</label>
+                  <input type="number" id="new-lib-copias" class="form-control" value="1" min="1" max="10" required>
+                </div>
+                <div class="form-group">
+                  <label for="new-lib-estante">Estante de Ubicación *</label>
+                  <input type="text" id="new-lib-estante" class="form-control" placeholder="Ej: Estante C-04" required>
+                </div>
+              </div>
+              <button type="submit" class="btn btn-success btn-block">💾 Registrar Material y Generar Ejemplares</button>
+            </form>
+          </div>
+
+          <!-- Importación Simulada / Real de Archivos CSV / XLSX -->
+          <div class="card">
+            <div class="card-header">
+              <h2>📥 Importación y Sincronización CSV / XLSX</h2>
+            </div>
+            <p class="helper-text">
+              Formato esperado por fila: <code>CODIGO;TITULO;AUTOR;CATEGORIA;ESTANTE;DESCRIPCION</code>.<br>
+              Si una fila tiene formato inválido, se rechaza solo ese registro y se genera el log: <em>"Fila [X]: Formato no reconocido. Registro no importado"</em>.
+            </p>
+
+            <div class="form-group" style="margin-top: 10px;">
+              <label for="csv-file-input">Cargar Archivo Externo (.csv / .xlsx)</label>
+              <input type="file" id="csv-file-input" class="form-control" accept=".csv,.txt,.xlsx">
+            </div>
+
+            <div class="form-group">
+              <label for="csv-raw-textarea">Contenido del Lote a Importar (Editable para pruebas de error en filas):</label>
+              <textarea id="csv-raw-textarea" class="form-control code-textarea" rows="6">LIB-008;Domain-Driven Design;Eric Evans;Ingeniería de Software;Estante A-04;Diseño guiado por el dominio
+FILA_CORRUPTA_SIN_COLUMNAS_VALIDAS
+LIB-009;El Coronel No Tiene Quien Le Escriba;Gabriel García Márquez;Literatura;Estante B-02;Clásico de literatura colombiana
+LIB-010;Sistemas Operativos Modernos;;Ciencias Básicas;Estante D-01;Fila con autor vacío (inválida)</textarea>
+            </div>
+
+            <div class="button-group two-cols">
+              <button id="btn-procesar-csv" class="btn btn-primary">⚙️ Procesar e Importar Lote</button>
+              <button id="btn-cargar-ejemplo-csv" class="btn btn-secondary">📋 Restaurar Lote de Prueba</button>
+            </div>
+
+            <div id="csv-import-results" class="csv-results-box hidden"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- MÓDULO B6: REPORTES Y TERMINAL DE EVENTOS (LOGS)                  -->
+      <!-- ================================================================= -->
+      <section id="sec-reportes-logs" class="module-section hidden">
+        <div class="card module-header-card border-theme-orange">
+          <span class="module-tag tag-orange">Auditoría, Interoperabilidad y Trazabilidad (&lt; 1 min)</span>
+          <h2>📄 Generación de Reportes y Terminal de Eventos</h2>
+          <p>Genera informes diarios de turno, reportes de reservas por criterio o reportes de morosidad con exportación a PDF y Excel/CSV.</p>
+        </div>
+
+        <!-- Panel Generador de Reportes -->
+        <div class="card">
+          <div class="card-header">
+            <h2>📊 Generador de Reportes Administrativos y de Turno</h2>
+            <div class="report-export-buttons">
+              <button id="btn-export-csv" class="btn btn-success btn-sm">📥 Exportar Excel / CSV</button>
+              <button id="btn-export-pdf" class="btn btn-primary btn-sm">🖨️ Exportar / Imprimir PDF</button>
+            </div>
+          </div>
+
+          <div class="filter-bar">
+            <div class="form-group">
+              <label for="rep-tipo">Tipo de Reporte</label>
+              <select id="rep-tipo" class="form-select">
+                <option value="DIARIO">1. Reporte Diario de Turno (Reservas Activas y En Mora)</option>
+                <option value="RESERVAS">2. Reporte General de Reservas por Criterio</option>
+                <option value="MOROSIDAD">3. Reporte de Clientes en Morosidad y Sanciones</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="rep-filtro-estado">Filtrar Estado</label>
+              <select id="rep-filtro-estado" class="form-select">
+                <option value="TODOS">Todos</option>
+                <option value="PENDIENTE">Pendientes</option>
+                <option value="CONFIRMADA">Confirmadas</option>
+                <option value="FINALIZADA">Finalizadas</option>
+                <option value="CANCELADA">Canceladas</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="rep-filtro-query">Criterio (Código Material / Cédula Cliente)</label>
+              <input type="text" id="rep-filtro-query" class="form-control" placeholder="Opcional: LIB-001 o 1001234567...">
+            </div>
+            <div class="form-group filter-actions">
+              <button id="btn-generar-reporte" class="btn btn-primary">🔍 Generar Vista Previa</button>
+            </div>
+          </div>
+
+          <!-- Mensaje Sin Registros (RNF Interoperabilidad) -->
+          <div id="reporte-empty-msg" class="empty-state-box hidden">
+            <div class="empty-icon">📂</div>
+            <h3>Sin Registros: No se encontraron datos para los filtros seleccionados</h3>
+          </div>
+
+          <!-- Contenedor de Vista Previa del Reporte -->
+          <div id="reporte-preview-container" class="report-preview-box"></div>
+        </div>
+
+        <!-- Terminal de Eventos y Notificaciones Automáticas -->
+        <div class="card logs-card">
+          <div class="card-header">
+            <div>
+              <h2>💻 Terminal de Eventos en Tiempo Real (Patrón State, Validaciones y Notificaciones)</h2>
+              <small class="text-muted">Registra cada transición de estado, bloqueos polimórficos, importaciones CSV y cola de notificaciones por correo.</small>
+            </div>
+            <div class="selector-actions">
+              <button id="btn-simular-fallo-notif" class="btn btn-secondary btn-sm" title="Simular fallo de red en envío de notificación automática">⚡ Simular Fallo Red Notificación</button>
+              <button id="btn-clear-log" class="btn btn-outline btn-sm">🧹 Limpiar registros</button>
+            </div>
+          </div>
+          <div id="log-terminal" class="terminal-window"></div>
+        </div>
+      </section>
+    </div>
+
+    <footer class="footer">
+      <p><strong>SIGREB - Instituto Tecnológico Metropolitano (ITM) &copy; 2026-2</strong> · Tecnología en Desarrollo de Software · Diseño de Sistemas de Información</p>
+    </footer>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- MODALES INTERACTIVOS DEL SISTEMA                                      -->
+  <!-- ===================================================================== -->
+
+  <!-- MODAL 1: SOLICITAR RESERVA (CLIENTE - HU-002 y HU-003) -->
+  <div id="modal-solicitar-reserva" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>📅 Solicitar Reserva de Material Bibliográfico</h3>
+        <button class="modal-close" data-close="modal-solicitar-reserva">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-book-summary" id="modal-res-book-info"></div>
+
+        <!-- Alerta de Validación o Conflicto de Fechas -->
+        <div id="modal-res-alert" class="alert hidden"></div>
+
+        <form id="form-solicitar-reserva">
+          <input type="hidden" id="modal-res-codigo">
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="modal-res-fecha-inicio">Fecha de Reserva *</label>
+              <input type="date" id="modal-res-fecha-inicio" class="form-control" required>
+            </div>
+            <div class="form-group">
+              <label for="modal-res-fecha-entrega">Fecha Estimada de Entrega *</label>
+              <input type="date" id="modal-res-fecha-entrega" class="form-control" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="modal-res-ejemplar">Seleccionar Ejemplar Físico</label>
+            <select id="modal-res-ejemplar" class="form-select"></select>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-close="modal-solicitar-reserva">Cancelar</button>
+            <button type="submit" id="btn-confirmar-solicitud-res" class="btn btn-primary">✅ Confirmar Reserva</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 2: CREAR RESERVA PRESENCIAL (BIBLIOTECARIO - HU-001) -->
+  <div id="modal-reserva-presencial" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>🏛️ Crear Nueva Reserva Presencial (HU-001)</h3>
+        <button class="modal-close" data-close="modal-reserva-presencial">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="modal-presencial-alert" class="alert hidden"></div>
+        <form id="form-reserva-presencial">
+          <div class="form-group">
+            <label for="pres-cliente-doc">Seleccionar / Validar Cliente por Cédula (CA-01 / CA-02) *</label>
+            <select id="pres-cliente-doc" class="form-select" required></select>
+          </div>
+          <div class="form-group">
+            <label for="pres-material-cod">Seleccionar Material Bibliográfico Disponible (CA-03) *</label>
+            <select id="pres-material-cod" class="form-select" required></select>
+          </div>
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="pres-fecha-inicio">Fecha de Reserva *</label>
+              <input type="date" id="pres-fecha-inicio" class="form-control" required>
+            </div>
+            <div class="form-group">
+              <label for="pres-fecha-entrega">Fecha de Entrega *</label>
+              <input type="date" id="pres-fecha-entrega" class="form-control" required>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-close="modal-reserva-presencial">Cerrar</button>
+            <button type="submit" class="btn btn-success">✅ Registrar Reserva Presencial</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 3: CONFIRMACIÓN EXPLÍCITA DE CANCELACIÓN (HU-004) -->
+  <div id="modal-confirmar-cancelacion" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>⚠️ Confirmar Cancelación de Reserva (HU-004)</h3>
+        <button class="modal-close" data-close="modal-confirmar-cancelacion">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>¿Está seguro de que desea cancelar la siguiente reserva activa? Esta acción cambiará su estado a <strong>CANCELADA</strong> y liberará el ejemplar físico a <strong>Disponible</strong> de forma inmediata.</p>
+        <div id="modal-cancel-detalle" class="summary-card"></div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-close="modal-confirmar-cancelacion">No, conservar reserva</button>
+          <button type="button" id="btn-ejecutar-cancelacion" class="btn btn-danger">❌ Sí, Cancelar Reserva</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 4: FINALIZAR RESERVA / REGISTRAR DEVOLUCIÓN (CON ESTADO DEL EJEMPLAR) -->
+  <div id="modal-finalizar-devolucion" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>📦 Registrar Devolución y Finalizar Reserva</h3>
+        <button class="modal-close" data-close="modal-finalizar-devolucion">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="modal-devolucion-detalle" class="summary-card"></div>
+        <div class="form-group" style="margin-top: 14px;">
+          <label for="devolucion-condicion">Estado Físico en que Regresa el Ejemplar (Patrón State Ejemplar):</label>
+          <select id="devolucion-condicion" class="form-select">
+            <option value="BUEN_ESTADO">🟢 En Buen Estado ➔ Ejemplar pasa a 'Disponible'</option>
+            <option value="CON_DANO">🟠 Con Daño Físico / Deterioro ➔ Ejemplar pasa a 'En Reparación'</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="devolucion-simular-fallo-red">
+            Simular fallo de conexión durante devolución (Prueba RNF Integridad: Reintento automático sin perder fecha real de entrega)
+          </label>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-close="modal-finalizar-devolucion">Cancelar</button>
+          <button type="button" id="btn-ejecutar-devolucion" class="btn btn-dark">📦 Confirmar Devolución</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 5: EDITAR FECHA / RENOVAR PRÉSTAMO O RESERVA -->
+  <div id="modal-editar-fecha" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>📅 Editar Fechas / Renovar Reserva</h3>
+        <button class="modal-close" data-close="modal-editar-fecha">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="modal-editar-detalle" class="summary-card"></div>
+        <div id="modal-editar-alert" class="alert hidden"></div>
+        <form id="form-editar-fecha">
+          <input type="hidden" id="edit-reserva-id">
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="edit-fecha-inicio">Nueva Fecha de Reserva *</label>
+              <input type="date" id="edit-fecha-inicio" class="form-control" required>
+            </div>
+            <div class="form-group">
+              <label for="edit-fecha-entrega">Nueva Fecha de Entrega *</label>
+              <input type="date" id="edit-fecha-entrega" class="form-control" required>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-close="modal-editar-fecha">Cancelar</button>
+            <button type="submit" class="btn btn-primary">💾 Guardar Nuevas Fechas</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 6: INSPECCIONAR RESERVA / COMPROBANTE DE RESUMEN COMPLETO -->
+  <div id="modal-inspeccionar-reserva" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="modal-inspect-title">🔍 Trazabilidad y Resumen de Reserva</h3>
+        <button class="modal-close" data-close="modal-inspeccionar-reserva">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="modal-inspect-content"></div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary" data-close="modal-inspeccionar-reserva">Aceptar y Cerrar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 7: ACTUALIZAR ESTADO FÍSICO DE EJEMPLAR (CON VALIDACIÓN OBLIGATORIA DE CÓDIGO) -->
+  <div id="modal-cambiar-estado-ejemplar" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>🏷️ Actualizar Estado Físico del Ejemplar</h3>
+        <button class="modal-close" data-close="modal-cambiar-estado-ejemplar">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="modal-ejemplar-info" class="summary-card"></div>
+        <div id="modal-ejemplar-alert" class="alert hidden"></div>
+        <form id="form-cambiar-estado-ejemplar">
+          <input type="hidden" id="ej-modal-id">
+          <div class="form-group">
+            <label for="ej-modal-confirm-codigo">Validación de Fiabilidad: Ingrese el Código del Libro (<strong id="ej-modal-expected-code"></strong>) para autorizar el cambio *</label>
+            <input type="text" id="ej-modal-confirm-codigo" class="form-control" placeholder="Escriba el código exacto del libro (ej. LIB-001)" required>
+          </div>
+          <div class="form-group">
+            <label for="ej-modal-nuevo-estado">Nuevo Estado (Catálogo Parametrizable - Patrón State) *</label>
+            <select id="ej-modal-nuevo-estado" class="form-select" required>
+              <option value="Disponible">Disponible (Reparación terminada / Devolución OK)</option>
+              <option value="Reservado">Reservado (Bloqueado para reserva confirmada)</option>
+              <option value="Prestado">Prestado (Entregado físicamente al cliente)</option>
+              <option value="En Reparación">En Reparación (Enviar por daño físico)</option>
+            </select>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-close="modal-cambiar-estado-ejemplar">Cancelar</button>
+            <button type="submit" class="btn btn-success">🔄 Aplicar Transición de Estado</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 8: CREAR CUENTA / REGISTRAR NUEVO USUARIO (DIAGRAMA DE ESTADOS CLIENTE 9.1.3) -->
+  <div id="modal-registrar-usuario" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="modal-registro-titulo">📝 Crear Nueva Cuenta de Usuario (SIGREB ITM)</h3>
+        <button class="modal-close" data-close="modal-registrar-usuario">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="summary-card">
+          <p><strong>Ciclo de Vida Patrón State (Figura 9.1.3):</strong> Todo nuevo cliente registrado nace automáticamente en estado <span class="tag-status status-activo">Activo</span> (habilitado para reservar y cancelar) con contraseña encriptada.</p>
+        </div>
+        <div id="modal-registro-alert" class="alert hidden"></div>
+        <form id="form-registrar-usuario" autocomplete="off">
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="reg-documento">Cédula / Documento de Identidad *</label>
+              <input type="text" id="reg-documento" class="form-control" placeholder="Ej: 1002223344" required>
+            </div>
+            <div class="form-group">
+              <label for="reg-rol">Rol de Usuario *</label>
+              <select id="reg-rol" class="form-select" required>
+                <option value="Cliente">Cliente (Estudiante / Docente)</option>
+                <option value="Bibliotecario">Bibliotecario (Operativo)</option>
+                <option value="Administrador">Administrador (Gestión Total)</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="reg-nombre">Nombre Completo *</label>
+            <input type="text" id="reg-nombre" class="form-control" placeholder="Ej: María Fernanda Restrepo" required>
+          </div>
+          <div class="form-group">
+            <label for="reg-email">Correo Institucional *</label>
+            <input type="email" id="reg-email" class="form-control" placeholder="Ej: mariarestrepo@itm.edu.co" required>
+          </div>
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="reg-password">Contraseña *</label>
+              <input type="password" id="reg-password" class="form-control" placeholder="Mínimo 4 caracteres" required>
+            </div>
+            <div class="form-group">
+              <label for="reg-estado-inicial">Estado Inicial (Solo Clientes)</label>
+              <select id="reg-estado-inicial" class="form-select">
+                <option value="Activo">🟢 Activo (Sin sanciones)</option>
+                <option value="En Morosidad">🔴 En Morosidad (Con sanción activa)</option>
+                <option value="Inactivo">⚪ Inactivo (Cuenta desactivada)</option>
+              </select>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-close="modal-registrar-usuario">Cancelar</button>
+            <button type="submit" class="btn btn-success">💾 Crear Usuario</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
